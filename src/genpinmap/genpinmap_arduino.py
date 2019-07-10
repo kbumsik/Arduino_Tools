@@ -818,6 +818,9 @@ def clean_all_lists():
 def parse_pins():
     print(" * Getting pins per Ips...")
     pinregex = r"^(P[A-Z][0-9][0-5]?)"
+    # STM32MP1 has additional pin definitions such as ANA1 for ADC
+    if "STM32MP1" in mcu_file:
+        pinregex = r"^(P[A-Z][0-9][0-5]?|ANA[0-9])"
     itemlist = xml_mcu.getElementsByTagName("Pin")
     for s in itemlist:
         m = re.match(pinregex, s.attributes["Name"].value)
@@ -826,7 +829,11 @@ def parse_pins():
                 m.group(0)[:2] + "_" + m.group(0)[2:]
             )  # pin formatted P<port>_<number>: PF_O
             name = s.attributes["Name"].value.strip()  # full name: "PF0 / OSC_IN"
-            if s.attributes["Type"].value == "I/O":
+            pin_type = s.attributes["Type"].value
+            if pin_type == "I/O":
+                store_pin(pin, name)
+            elif "STM32MP1" in mcu_file and "ANA" in name and pin_type == "MonoIO":
+                pin = "ANA" + "_" + name[3:] # ANA1 will be ANA_1
                 store_pin(pin, name)
             else:
                 continue
@@ -855,6 +862,11 @@ def parse_pins():
                     store_sys(pin, name, sig)
                 if "USB" in sig:
                     store_usb(pin, name, sig)
+                if re.match("STM32MP1", mcu_file):
+                    # In STM32MP1, SYS_WKUP is renamed as PWR_WKUP
+                    if "PWR_" in sig:
+                        sig = sig.replace("PWR_", "SYS_")
+                        store_sys(pin, name, sig)
 
 
 # main
